@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adame Runner</title>
+
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  background:#050505;
+  color:white;
+  font-family:Arial,sans-serif;
+  text-align:center;
+}
+
+body{
+  overflow-y:auto;
+  min-height:100vh;
+}
+
+h1,p{
+  display:none;
+}
+
+canvas{
+  display:block;
+  margin:0 auto;
+  width:100vw;
+  height:auto;
+  max-width:1000px;
+  background:#111;
+  touch-action:none;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="1000" height="560"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let keys = {};
+let score = 0;
+let bestScore = 0;
+let difficulty = 1;
+let gameOver = false;
+let restartStarted = false;
+let showSpeech = true;
+let frame = 0;
+let lastTap = 0;
+
+const groundY = 430;
+const gravity = 0.9;
+
+let obstacles = [];
+
+let adame = {
+  x:155,
+  y:340,
+  w:70,
+  h:95,
+  speed:7.4,
+  vy:0,
+  jumping:false
+};
+
+let manon = {
+  x:675,
+  y:330,
+  w:70,
+  h:100
+};
+
+function jumpAction(){
+  if(!adame.jumping && !gameOver){
+    adame.vy = -19;
+    adame.jumping = true;
+  }
+}
+
+document.addEventListener("keydown", e=>{
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)){
+    e.preventDefault();
+  }
+
+  if(e.key === "ArrowUp" || e.key === " "){
+    jumpAction();
+  }
+
+  keys[e.key] = true;
+});
+
+document.addEventListener("keyup", e=>{
+  keys[e.key] = false;
+});
+
+canvas.addEventListener("pointerdown", e=>{
+  e.preventDefault();
+
+  const now = Date.now();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+
+  if(now - lastTap < 300){
+    jumpAction();
+  }
+
+  lastTap = now;
+
+  if(x < rect.width / 2){
+    keys["ArrowLeft"] = true;
+  }else{
+    keys["ArrowRight"] = true;
+  }
+});
+
+canvas.addEventListener("pointerup", e=>{
+  e.preventDefault();
+  keys["ArrowLeft"] = false;
+  keys["ArrowRight"] = false;
+});
+
+canvas.addEventListener("pointercancel", ()=>{
+  keys["ArrowLeft"] = false;
+  keys["ArrowRight"] = false;
+});
+
+setTimeout(()=>showSpeech=false,4200);
+
+function spawnObstacle(){
+  if(gameOver) return;
+
+  let types = ["tasty"];
+  if(score > 1000) types.push("cone");
+  if(score > 2300) types.push("barrier");
+  if(score > 4000) types.push("trash");
+  if(score > 6500) types.push("scooter");
+
+  let type = types[Math.floor(Math.random()*types.length)];
+
+  let o = {
+    x:canvas.width+90,
+    y:370,
+    w:70,
+    h:58,
+    speed:7.7+difficulty*0.75,
+    type:type
+  };
+
+  if(type==="cone"){ o.y=386; o.w=48; o.h=44; }
+  if(type==="barrier"){ o.y=360; o.w=105; o.h=70; }
+  if(type==="trash"){ o.y=364; o.w=66; o.h=66; }
+  if(type==="scooter"){ o.y=378; o.w=110; o.h=52; o.speed+=1.3; }
+
+  obstacles.push(o);
+}
+
+setInterval(spawnObstacle,1050);
+
+function collision(a,b){
+  return (
+    a.x+16 < b.x+b.w-14 &&
+    a.x+a.w-16 > b.x+14 &&
+    a.y+16 < b.y+b.h-10 &&
+    a.y+a.h-8 > b.y+10
+  );
+}
+
+function rr(x,y,w,h,r,c){
+  ctx.fillStyle=c;
+  ctx.beginPath();
+  ctx.roundRect(x,y,w,h,r);
+  ctx.fill();
+}
+
+function drawBackground(){
+  let sky=ctx.createLinearGradient(0,0,0,430);
+  sky.addColorStop(0,"#2b0a21");
+  sky.addColorStop(0.25,"#8b1d2c");
+  sky.addColorStop(0.55,"#f25c1f");
+  sky.addColorStop(0.85,"#ffb347");
+  sky.addColorStop(1,"#151515");
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="rgba(0,0,0,0.18)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="rgba(255,196,90,0.7)";
+  ctx.beginPath();
+  ctx.arc(835,105,55,0,Math.PI*2);
+  ctx.fill();
+
+  for(let i=0;i<16;i++){
+    let x=i*78-(score*0.22)%78;
+    let h=105+(i%5)*38;
+    ctx.fillStyle=i%2===0?"#161616":"#242424";
+    ctx.fillRect(x,groundY-h,65,h);
+
+    ctx.fillStyle="#ffd166";
+    for(let j=0;j<6;j++){
+      ctx.fillRect(x+13,groundY-h+20+j*25,8,12);
+      ctx.fillRect(x+40,groundY-h+20+j*25,8,12);
+    }
+  }
+
+  drawPalm(150-(score*0.35)%650,285);
+  drawPalm(420-(score*0.35)%650,235);
+  drawPalm(740-(score*0.35)%650,270);
+  drawPalm(1060-(score*0.35)%650,250);
+
+  ctx.fillStyle="#3a2418";
+  ctx.fillRect(0,315,canvas.width,78);
+
+  ctx.fillStyle="#234b25";
+  for(let i=0;i<18;i++){
+    ctx.beginPath();
+    ctx.ellipse(i*65-(score*0.5)%65,385,28,12,0,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle="#101010";
+  ctx.fillRect(0,groundY,canvas.width,130);
+
+  ctx.fillStyle="#2c2c2c";
+  ctx.fillRect(0,groundY+8,canvas.width,72);
+
+  ctx.strokeStyle="#e1a832";
+  ctx.lineWidth=6;
+  ctx.setLineDash([50,38]);
+  ctx.beginPath();
+  ctx.moveTo((-score*0.95)%90,groundY+52);
+  ctx.lineTo(canvas.width,groundY+52);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle="#111";
+  ctx.fillRect(805,130,160,68);
+  ctx.strokeStyle="#a6c45a";
+  ctx.lineWidth=4;
+  ctx.strokeRect(805,130,160,68);
+
+  ctx.fillStyle="#a6c45a";
+  ctx.font="bold 22px Impact";
+  ctx.fillText("RUE",855,155);
+  ctx.fillText("SAINT-GERMAIN",815,183);
+
+  ctx.font="bold 42px Impact";
+  ctx.fillStyle="rgba(124,252,0,0.25)";
+  ctx.fillText("LOVE",65,350);
+
+  ctx.fillStyle="rgba(255,170,0,0.25)";
+  ctx.fillText("HOPE",850,350);
+}
+
+function drawPalm(x,y){
+  if(x<-120) x+=1250;
+
+  ctx.fillStyle="#3a1e12";
+  ctx.fillRect(x,y,14,145);
+
+  ctx.fillStyle="#0b351b";
+  for(let i=0;i<8;i++){
+    ctx.beginPath();
+    ctx.ellipse(x+7,y,85,15,i*Math.PI/4,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawName(t,x,y){
+  ctx.font="bold 18px Arial";
+  ctx.strokeStyle="black";
+  ctx.lineWidth=5;
+  ctx.strokeText(t,x,y);
+  ctx.fillStyle="white";
+  ctx.fillText(t,x,y);
+}
+
+function drawAdame(x,y){
+  let run=adame.jumping?0:Math.sin(frame*0.28)*6;
+
+  drawName("Adame",x+5,y-35);
+
+  ctx.fillStyle="rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(x+35,y+108,38,9,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#c68642";
+  ctx.beginPath();
+  ctx.arc(x+36,y+8,24,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#050505";
+  ctx.beginPath();
+  ctx.arc(x+36,y-4,25,Math.PI,0);
+  ctx.fill();
+
+  for(let i=0;i<8;i++){
+    ctx.beginPath();
+    ctx.arc(x+15+i*6,y-9-Math.sin(i)*4,7,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle="black";
+  ctx.beginPath();
+  ctx.arc(x+27,y+6,3,0,Math.PI*2);
+  ctx.arc(x+45,y+6,3,0,Math.PI*2);
+  ctx.fill();
+
+  rr(x+8,y+32,56,52,8,"#c1121f");
+
+  ctx.fillStyle="#006233";
+  ctx.fillRect(x+8,y+32,9,52);
+  ctx.fillRect(x+55,y+32,9,52);
+
+  ctx.fillStyle="white";
+  ctx.font="bold 13px Arial";
+  ctx.fillText("MAROC",x+17,y+63);
+
+  ctx.fillStyle="#c68642";
+  ctx.fillRect(x,y+40+run,9,30);
+  ctx.fillRect(x+63,y+40-run,9,30);
+
+  ctx.fillStyle="#c1121f";
+  ctx.fillRect(x+17,y+84+run,14,35);
+  ctx.fillRect(x+40,y+84-run,14,35);
+
+  ctx.fillStyle="white";
+  ctx.fillRect(x+10,y+116+run,27,8);
+  ctx.fillRect(x+35,y+116-run,27,8);
+}
+
+function drawManon(x,y){
+  let run=Math.sin(frame*0.22)*5;
+
+  drawName("Manon",x+5,y-35);
+
+  ctx.fillStyle="rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(x+35,y+113,38,9,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#f1c27d";
+  ctx.beginPath();
+  ctx.arc(x+35,y+8,24,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#ffd45c";
+  ctx.beginPath();
+  ctx.arc(x+35,y+2,28,Math.PI,0);
+  ctx.fill();
+  ctx.fillRect(x+4,y+2,14,48);
+  ctx.fillRect(x+52,y+2,14,48);
+
+  ctx.fillStyle="black";
+  ctx.beginPath();
+  ctx.arc(x+27,y+6,2.5,0,Math.PI*2);
+  ctx.arc(x+44,y+6,2.5,0,Math.PI*2);
+  ctx.fill();
+
+  rr(x+10,y+35,52,54,8,"white");
+
+  ctx.fillStyle="#f1c27d";
+  ctx.fillRect(x+18,y+89+run,10,32);
+  ctx.fillRect(x+43,y+89-run,10,32);
+
+  ctx.fillStyle="white";
+  ctx.fillRect(x+12,y+118+run,22,7);
+  ctx.fillRect(x+37,y+118-run,22,7);
+
+  if(showSpeech){
+    rr(x-250,y-128,295,70,16,"white");
+    ctx.fillStyle="black";
+    ctx.font="bold 14px Arial";
+    ctx.fillText("LAISSE MOI",x-230,y-100);
+    ctx.fillText("JE T'AIME PLUS",x-230,y-80);
+    ctx.fillText("JE PRÉFÈRE NOAM",x-230,y-60);
+  }
+}
+
+function drawTasty(o){
+  ctx.save();
+  ctx.translate(o.x+o.w/2,o.y+o.h/2);
+  ctx.rotate(Math.sin(frame*0.08+o.x*0.02)*0.06);
+
+  ctx.fillStyle="rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(0,38,40,9,0,0,Math.PI*2);
+  ctx.fill();
+
+  rr(-o.w/2,-o.h/2,o.w,o.h,8,"#b80f0a");
+  rr(-o.w/2+8,-o.h/2+8,o.w-16,o.h-16,6,"#ffcc00");
+
+  ctx.fillStyle="#b80f0a";
+  ctx.font="bold 15px Arial";
+  ctx.fillText("TASTY",-24,-3);
+
+  ctx.fillStyle="#111";
+  ctx.font="bold 13px Arial";
+  ctx.fillText("CROUSTY",-31,17);
+
+  ctx.restore();
+}
+
+function drawCone(o){
+  ctx.fillStyle="#ff6b00";
+  ctx.beginPath();
+  ctx.moveTo(o.x+24,o.y);
+  ctx.lineTo(o.x,o.y+45);
+  ctx.lineTo(o.x+48,o.y+45);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle="white";
+  ctx.fillRect(o.x+9,o.y+25,30,7);
+  ctx.fillRect(o.x+5,o.y+40,38,6);
+}
+
+function drawObstacle(o){
+  if(o.type==="tasty") drawTasty(o);
+  else drawCone(o);
+}
+
+function restartGame(){
+  if(score>bestScore) bestScore=score;
+
+  score=0;
+  difficulty=1;
+  adame.x=155;
+  adame.y=340;
+  adame.vy=0;
+  adame.jumping=false;
+  obstacles=[];
+  gameOver=false;
+  restartStarted=false;
+  showSpeech=true;
+
+  setTimeout(()=>showSpeech=false,4200);
+}
+
+function update(){
+  frame++;
+
+  if(gameOver && !restartStarted){
+    restartStarted=true;
+    setTimeout(restartGame,1500);
+    return;
+  }
+
+  if(gameOver) return;
+
+  score++;
+  difficulty=1+Math.floor(score/700);
+
+  if(keys["ArrowRight"]) adame.x+=adame.speed;
+  if(keys["ArrowLeft"]) adame.x-=adame.speed;
+
+  adame.y+=adame.vy;
+  adame.vy+=gravity;
+
+  if(adame.y>=340){
+    adame.y=340;
+    adame.vy=0;
+    adame.jumping=false;
+  }
+
+  if(adame.x<0) adame.x=0;
+  if(adame.x+adame.w>410) adame.x=410-adame.w;
+
+  manon.y=330+Math.sin(score/18)*4;
+
+  obstacles.forEach(o=>o.x-=o.speed);
+  obstacles=obstacles.filter(o=>o.x+o.w>0);
+
+  obstacles.forEach(o=>{
+    if(collision(adame,o)) gameOver=true;
+  });
+}
+
+function drawUI(){
+  ctx.font="bold 22px Arial";
+  ctx.strokeStyle="black";
+  ctx.lineWidth=5;
+
+  ctx.strokeText("Score : "+score,20,35);
+  ctx.fillStyle="white";
+  ctx.fillText("Score : "+score,20,35);
+
+  ctx.strokeText("Record : "+bestScore,20,65);
+  ctx.fillText("Record : "+bestScore,20,65);
+
+  ctx.strokeText("Difficulté : "+difficulty,20,95);
+  ctx.fillText("Difficulté : "+difficulty,20,95);
+}
+
+function draw(){
+  drawBackground();
+  drawManon(manon.x,manon.y);
+  drawAdame(adame.x,adame.y);
+  obstacles.forEach(drawObstacle);
+  drawUI();
+
+  if(gameOver){
+    ctx.fillStyle="rgba(0,0,0,0.84)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle="#ff2b2b";
+    ctx.font="66px Impact";
+    ctx.fillText("GAME OVER",330,245);
+
+    ctx.fillStyle="white";
+    ctx.font="24px Arial";
+    ctx.fillText("Adame a touché un obstacle...",335,290);
+    ctx.fillText("Nouvelle partie...",405,330);
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
