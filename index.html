@@ -2,379 +2,117 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
 <title>Pour la ville 💚</title>
 
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: #050505;
-  font-family: Arial, sans-serif;
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,sans-serif;
 }
 
-canvas {
-  display: block;
-  width: 100vw;
-  height: 100vh;
-  background: #111;
-  touch-action: none;
+body{
+background:#111;
+overflow:hidden;
+color:white;
 }
+
+#menu{
+position:absolute;
+width:100%;
+height:100%;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:linear-gradient(#1d1d1d,#050505);
+}
+
+h1{
+font-size:60px;
+color:#3cff70;
+text-shadow:0 0 20px #3cff70;
+margin-bottom:15px;
+}
+
+p{
+opacity:.8;
+margin-bottom:40px;
+}
+
+button{
+width:250px;
+padding:18px;
+margin:10px;
+font-size:22px;
+border:none;
+border-radius:15px;
+background:#3cff70;
+color:black;
+font-weight:bold;
+cursor:pointer;
+transition:.2s;
+}
+
+button:hover{
+transform:scale(1.05);
+}
+
+#game{
+display:none;
+width:100vw;
+height:100vh;
+background:#222;
+position:relative;
+}
+
 </style>
 </head>
 
 <body>
 
-<canvas id="game"></canvas>
+<div id="menu">
+
+<h1>POUR LA VILLE 💚</h1>
+
+<p>Choisis ton personnage</p>
+
+<button onclick="start('adame')">
+🇲🇦 Adame
+</button>
+
+<button onclick="start('ylian')">
+🇩🇿 Ylian
+</button>
+
+<button onclick="start('sebai')">
+🍗 Sebai
+</button>
+
+</div>
+
+<div id="game"></div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
 
-let W, H;
+function start(name){
 
-function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+document.getElementById("menu").style.display="none";
+
+document.getElementById("game").style.display="block";
+
+document.getElementById("game").innerHTML=`
+<h2 style="text-align:center;padding-top:40px;">
+Bienvenue ${name.toUpperCase()}
+</h2>
+`;
+
 }
 
-window.addEventListener("resize", resize);
-resize();
-
-let gameStarted = false;
-let gameOver = false;
-let score = 0;
-let speed = 7;
-
-let lanes = [-1, 0, 1];
-let currentLane = 1;
-
-let player = {
-  x: 0,
-  y: 0,
-  w: 50,
-  h: 90,
-  vy: 0,
-  jumping: false,
-  sliding: false
-};
-
-let obstacles = [];
-
-let touchStartX = 0;
-let touchStartY = 0;
-
-function startGame() {
-  gameStarted = true;
-  gameOver = false;
-  score = 0;
-  speed = 7;
-  currentLane = 1;
-  player.vy = 0;
-  player.jumping = false;
-  player.sliding = false;
-  obstacles = [];
-}
-
-function jump() {
-  if (!player.jumping && !player.sliding) {
-    player.vy = -18;
-    player.jumping = true;
-  }
-}
-
-function slide() {
-  if (!player.jumping) {
-    player.sliding = true;
-    setTimeout(() => {
-      player.sliding = false;
-    }, 500);
-  }
-}
-
-function moveLeft() {
-  if (currentLane > 0) currentLane--;
-}
-
-function moveRight() {
-  if (currentLane < 2) currentLane++;
-}
-
-document.addEventListener("keydown", e => {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) {
-    e.preventDefault();
-  }
-
-  if (!gameStarted || gameOver) {
-    startGame();
-    return;
-  }
-
-  if (e.key === "ArrowLeft") moveLeft();
-  if (e.key === "ArrowRight") moveRight();
-  if (e.key === "ArrowUp" || e.key === " ") jump();
-  if (e.key === "ArrowDown") slide();
-});
-
-canvas.addEventListener("touchstart", e => {
-  e.preventDefault();
-
-  if (!gameStarted || gameOver) {
-    startGame();
-    return;
-  }
-
-  touchStartX = e.touches[0].clientX;
-  touchStartY = e.touches[0].clientY;
-}, { passive: false });
-
-canvas.addEventListener("touchend", e => {
-  e.preventDefault();
-
-  let touchEndX = e.changedTouches[0].clientX;
-  let touchEndY = e.changedTouches[0].clientY;
-
-  let dx = touchEndX - touchStartX;
-  let dy = touchEndY - touchStartY;
-
-  if (Math.abs(dx) > Math.abs(dy)) {
-    if (dx > 40) moveRight();
-    if (dx < -40) moveLeft();
-  } else {
-    if (dy < -40) jump();
-    if (dy > 40) slide();
-  }
-}, { passive: false });
-
-function spawnObstacle() {
-  if (!gameStarted || gameOver) return;
-
-  let lane = Math.floor(Math.random() * 3);
-
-  obstacles.push({
-    lane: lane,
-    z: W + 120,
-    w: 60,
-    h: 70,
-    type: Math.random() > 0.7 ? "high" : "low"
-  });
-}
-
-setInterval(spawnObstacle, 1100);
-
-function getLaneX(lane) {
-  let center = W / 2;
-  let spacing = Math.min(W * 0.23, 140);
-  return center + lanes[lane] * spacing;
-}
-
-function update() {
-  if (!gameStarted || gameOver) return;
-
-  score++;
-  speed = 7 + Math.floor(score / 800);
-
-  player.y += player.vy;
-  player.vy += 0.9;
-
-  let ground = H * 0.76;
-
-  if (player.y > ground) {
-    player.y = ground;
-    player.vy = 0;
-    player.jumping = false;
-  }
-
-  obstacles.forEach(o => {
-    o.z -= speed;
-  });
-
-  obstacles = obstacles.filter(o => o.z > -100);
-
-  let px = getLaneX(currentLane);
-  let py = player.y;
-  let ph = player.sliding ? 45 : player.h;
-
-  obstacles.forEach(o => {
-    let ox = getLaneX(o.lane);
-    let oy = H * 0.76;
-
-    if (
-      Math.abs(px - ox) < 50 &&
-      Math.abs(o.z - W * 0.28) < 45 &&
-      py + ph > oy - o.h
-    ) {
-      gameOver = true;
-    }
-  });
-}
-
-function drawBackground() {
-  let sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, "#1b0628");
-  sky.addColorStop(0.35, "#7a1f3d");
-  sky.addColorStop(0.7, "#ff7a1a");
-  sky.addColorStop(1, "#111");
-
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = "rgba(255, 190, 80, 0.7)";
-  ctx.beginPath();
-  ctx.arc(W * 0.82, H * 0.16, 45, 0, Math.PI * 2);
-  ctx.fill();
-
-  for (let i = 0; i < 12; i++) {
-    let bw = W / 10;
-    let bh = 120 + (i % 4) * 45;
-    let x = i * bw - (score * 0.2) % bw;
-
-    ctx.fillStyle = i % 2 === 0 ? "#171717" : "#242424";
-    ctx.fillRect(x, H * 0.55 - bh, bw * 0.8, bh);
-
-    ctx.fillStyle = "#ffd166";
-    for (let j = 0; j < 5; j++) {
-      ctx.fillRect(x + 15, H * 0.55 - bh + 25 + j * 25, 8, 12);
-      ctx.fillRect(x + 45, H * 0.55 - bh + 25 + j * 25, 8, 12);
-    }
-  }
-
-  ctx.fillStyle = "#101010";
-  ctx.fillRect(0, H * 0.76, W, H * 0.24);
-
-  ctx.fillStyle = "#2f2f2f";
-  ctx.fillRect(0, H * 0.78, W, H * 0.12);
-
-  ctx.strokeStyle = "#e1a832";
-  ctx.lineWidth = 5;
-  ctx.setLineDash([40, 35]);
-  ctx.beginPath();
-  ctx.moveTo((-score * 1.2) % 80, H * 0.84);
-  ctx.lineTo(W, H * 0.84);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  ctx.fillStyle = "#0b351b";
-  ctx.fillRect(0, H * 0.72, W, 20);
-
-  ctx.fillStyle = "#a6ff68";
-  ctx.font = "bold 28px Arial";
-  ctx.fillText("POUR LA VILLE 💚", 20, 45);
-}
-
-function drawPlayer() {
-  let x = getLaneX(currentLane);
-  let y = player.y;
-  let h = player.sliding ? 45 : player.h;
-
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.beginPath();
-  ctx.ellipse(x, y + 45, 45, 10, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#c68642";
-  ctx.beginPath();
-  ctx.arc(x, y - h + 20, 23, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#050505";
-  ctx.beginPath();
-  ctx.arc(x, y - h + 12, 24, Math.PI, 0);
-  ctx.fill();
-
-  ctx.fillStyle = "#c1121f";
-  ctx.fillRect(x - 28, y - h + 45, 56, 45);
-
-  ctx.fillStyle = "#006233";
-  ctx.fillRect(x - 28, y - h + 45, 8, 45);
-  ctx.fillRect(x + 20, y - h + 45, 8, 45);
-
-  ctx.fillStyle = "white";
-  ctx.font = "bold 12px Arial";
-  ctx.fillText("MAROC", x - 22, y - h + 73);
-
-  ctx.fillStyle = "#111";
-  ctx.fillRect(x - 22, y - h + 90, 16, 35);
-  ctx.fillRect(x + 6, y - h + 90, 16, 35);
-
-  ctx.fillStyle = "white";
-  ctx.font = "bold 15px Arial";
-  ctx.strokeStyle = "black";
-  ctx.lineWidth = 4;
-  ctx.strokeText("Adame", x - 27, y - h - 10);
-  ctx.fillText("Adame", x - 27, y - h - 10);
-}
-
-function drawObstacle(o) {
-  let x = getLaneX(o.lane);
-  let y = H * 0.76;
-
-  ctx.fillStyle = "rgba(0,0,0,0.45)";
-  ctx.beginPath();
-  ctx.ellipse(x, y + 10, 40, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#ff6b00";
-  ctx.beginPath();
-  ctx.moveTo(x, y - 70);
-  ctx.lineTo(x - 35, y);
-  ctx.lineTo(x + 35, y);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "white";
-  ctx.fillRect(x - 22, y - 35, 44, 8);
-  ctx.fillRect(x - 30, y - 12, 60, 8);
-}
-
-function drawUI() {
-  ctx.fillStyle = "white";
-  ctx.font = "bold 20px Arial";
-  ctx.fillText("Score : " + score, 20, 80);
-  ctx.fillText("Vitesse : " + speed, 20, 110);
-
-  if (!gameStarted) {
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.fillStyle = "#a6ff68";
-    ctx.font = "bold 42px Arial";
-    ctx.fillText("POUR LA VILLE 💚", W / 2 - 180, H / 2 - 40);
-
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.fillText("Tape l'écran ou appuie sur une touche", W / 2 - 170, H / 2 + 10);
-  }
-
-  if (gameOver) {
-    ctx.fillStyle = "rgba(0,0,0,0.75)";
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.fillStyle = "#ff2b2b";
-    ctx.font = "bold 46px Arial";
-    ctx.fillText("GAME OVER", W / 2 - 140, H / 2 - 20);
-
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.fillText("Tape pour recommencer", W / 2 - 105, H / 2 + 25);
-  }
-}
-
-function draw() {
-  drawBackground();
-  obstacles.forEach(drawObstacle);
-  drawPlayer();
-  drawUI();
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-loop();
 </script>
 
 </body>
