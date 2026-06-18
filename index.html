@@ -2,117 +2,532 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pour la ville 💚</title>
-
 <style>
-
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial,sans-serif;
+html,body{
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  background:#050505;
+  font-family:Arial,sans-serif;
 }
-
-body{
-background:#111;
-overflow:hidden;
-color:white;
+canvas{
+  display:block;
+  width:100vw;
+  height:100vh;
+  touch-action:none;
+  background:#111;
 }
-
-#menu{
-position:absolute;
-width:100%;
-height:100%;
-display:flex;
-flex-direction:column;
-justify-content:center;
-align-items:center;
-background:linear-gradient(#1d1d1d,#050505);
-}
-
-h1{
-font-size:60px;
-color:#3cff70;
-text-shadow:0 0 20px #3cff70;
-margin-bottom:15px;
-}
-
-p{
-opacity:.8;
-margin-bottom:40px;
-}
-
-button{
-width:250px;
-padding:18px;
-margin:10px;
-font-size:22px;
-border:none;
-border-radius:15px;
-background:#3cff70;
-color:black;
-font-weight:bold;
-cursor:pointer;
-transition:.2s;
-}
-
-button:hover{
-transform:scale(1.05);
-}
-
-#game{
-display:none;
-width:100vw;
-height:100vh;
-background:#222;
-position:relative;
-}
-
 </style>
 </head>
-
 <body>
 
-<div id="menu">
-
-<h1>POUR LA VILLE 💚</h1>
-
-<p>Choisis ton personnage</p>
-
-<button onclick="start('adame')">
-🇲🇦 Adame
-</button>
-
-<button onclick="start('ylian')">
-🇩🇿 Ylian
-</button>
-
-<button onclick="start('sebai')">
-🍗 Sebai
-</button>
-
-</div>
-
-<div id="game"></div>
+<canvas id="game"></canvas>
 
 <script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-function start(name){
+let W,H;
+function resize(){
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener("resize",resize);
+resize();
 
-document.getElementById("menu").style.display="none";
+let state = "menu";
+let selected = null;
 
-document.getElementById("game").style.display="block";
+let score = 0;
+let distance = 0;
+let cents = 0;
+let speed = 7;
+let bestDistance = Number(localStorage.getItem("bestDistance") || 0);
+let bestCents = Number(localStorage.getItem("bestCents") || 0);
 
-document.getElementById("game").innerHTML=`
-<h2 style="text-align:center;padding-top:40px;">
-Bienvenue ${name.toUpperCase()}
-</h2>
-`;
+const lanes = [-1,0,1];
+let lane = 1;
 
+let player = {
+  y:0,
+  vy:0,
+  jumping:false,
+  sliding:false
+};
+
+let coins = [];
+let obstacles = [];
+
+let touchX = 0;
+let touchY = 0;
+
+function startGame(char){
+  selected = char;
+  state = "play";
+  score = 0;
+  distance = 0;
+  cents = 0;
+  speed = 7;
+  lane = 1;
+  player.y = H * 0.72;
+  player.vy = 0;
+  player.jumping = false;
+  player.sliding = false;
+  coins = [];
+  obstacles = [];
 }
 
+function gameOver(){
+  state = "over";
+
+  if(distance > bestDistance){
+    bestDistance = Math.floor(distance);
+    localStorage.setItem("bestDistance", bestDistance);
+  }
+
+  if(cents > bestCents){
+    bestCents = cents;
+    localStorage.setItem("bestCents", bestCents);
+  }
+}
+
+function laneX(l){
+  const spacing = Math.min(W * 0.24, 150);
+  return W/2 + lanes[l] * spacing;
+}
+
+function moveLeft(){
+  if(lane > 0) lane--;
+}
+
+function moveRight(){
+  if(lane < 2) lane++;
+}
+
+function jump(){
+  if(!player.jumping && !player.sliding && state === "play"){
+    player.vy = -19;
+    player.jumping = true;
+  }
+}
+
+function slide(){
+  if(!player.jumping && state === "play"){
+    player.sliding = true;
+    setTimeout(()=>player.sliding=false,500);
+  }
+}
+
+document.addEventListener("keydown", e=>{
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)){
+    e.preventDefault();
+  }
+
+  if(state === "menu"){
+    if(e.key === "1") startGame("adame");
+    if(e.key === "2") startGame("ylian");
+    if(e.key === "3") startGame("sebai");
+    return;
+  }
+
+  if(state === "over"){
+    state = "menu";
+    return;
+  }
+
+  if(e.key === "ArrowLeft") moveLeft();
+  if(e.key === "ArrowRight") moveRight();
+  if(e.key === "ArrowUp" || e.key === " ") jump();
+  if(e.key === "ArrowDown") slide();
+});
+
+canvas.addEventListener("touchstart", e=>{
+  e.preventDefault();
+  touchX = e.touches[0].clientX;
+  touchY = e.touches[0].clientY;
+},{passive:false});
+
+canvas.addEventListener("touchend", e=>{
+  e.preventDefault();
+
+  const x = e.changedTouches[0].clientX;
+  const y = e.changedTouches[0].clientY;
+
+  const dx = x - touchX;
+  const dy = y - touchY;
+
+  if(state === "menu"){
+    const third = H / 3;
+    if(y < third) startGame("adame");
+    else if(y < third * 2) startGame("ylian");
+    else startGame("sebai");
+    return;
+  }
+
+  if(state === "over"){
+    state = "menu";
+    return;
+  }
+
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(dx > 40) moveRight();
+    if(dx < -40) moveLeft();
+  }else{
+    if(dy < -40) jump();
+    if(dy > 40) slide();
+  }
+},{passive:false});
+
+function spawnCoin(){
+  if(state !== "play") return;
+
+  coins.push({
+    lane:Math.floor(Math.random()*3),
+    x:W + 60,
+    y:H*0.70,
+    r:14
+  });
+}
+
+function spawnObstacle(){
+  if(state !== "play") return;
+
+  const types = ["car","barrier"];
+  const type = types[Math.floor(Math.random()*types.length)];
+
+  obstacles.push({
+    lane:Math.floor(Math.random()*3),
+    x:W + 100,
+    y:H*0.72,
+    w:type==="car" ? 90 : 70,
+    h:type==="car" ? 55 : 65,
+    type:type
+  });
+}
+
+setInterval(spawnCoin,700);
+setInterval(spawnObstacle,1300);
+
+function update(){
+  if(state !== "play") return;
+
+  score++;
+  distance += speed * 0.08;
+  speed = 7 + Math.floor(distance / 250);
+
+  player.y += player.vy;
+  player.vy += 0.9;
+
+  const ground = H * 0.72;
+
+  if(player.y >= ground){
+    player.y = ground;
+    player.vy = 0;
+    player.jumping = false;
+  }
+
+  coins.forEach(c=>c.x -= speed);
+  obstacles.forEach(o=>o.x -= speed);
+
+  coins = coins.filter(c=>c.x > -50);
+  obstacles = obstacles.filter(o=>o.x > -150);
+
+  const px = laneX(lane);
+  const py = player.y;
+  const ph = player.sliding ? 45 : 90;
+
+  coins.forEach(c=>{
+    if(c.lane === lane && Math.abs(c.x - px) < 42 && Math.abs(c.y - py) < 70){
+      c.collected = true;
+      cents++;
+    }
+  });
+
+  coins = coins.filter(c=>!c.collected);
+
+  obstacles.forEach(o=>{
+    const ox = laneX(o.lane);
+    const oy = o.y;
+
+    if(
+      o.lane === lane &&
+      Math.abs(o.x - px) < 60 &&
+      py + 10 > oy - o.h &&
+      py - ph < oy
+    ){
+      gameOver();
+    }
+  });
+}
+
+function drawBackground(){
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,"#160021");
+  sky.addColorStop(0.35,"#7a1f3d");
+  sky.addColorStop(0.7,"#ff7a1a");
+  sky.addColorStop(1,"#101010");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = "rgba(255,190,80,0.75)";
+  ctx.beginPath();
+  ctx.arc(W*0.82,H*0.16,45,0,Math.PI*2);
+  ctx.fill();
+
+  for(let i=0;i<14;i++){
+    const bw = W/10;
+    const bh = 110 + (i%5)*35;
+    const x = i*bw - (distance*0.7)%bw;
+
+    ctx.fillStyle = i%2===0 ? "#171717" : "#242424";
+    ctx.fillRect(x,H*0.55-bh,bw*0.8,bh);
+
+    ctx.fillStyle = "#ffd166";
+    for(let j=0;j<5;j++){
+      ctx.fillRect(x+15,H*0.55-bh+25+j*25,8,12);
+      ctx.fillRect(x+45,H*0.55-bh+25+j*25,8,12);
+    }
+  }
+
+  ctx.fillStyle="#0b351b";
+  ctx.fillRect(0,H*0.68,W,25);
+
+  ctx.fillStyle="#111";
+  ctx.fillRect(0,H*0.72,W,H*0.28);
+
+  ctx.fillStyle="#2f2f2f";
+  ctx.fillRect(0,H*0.75,W,H*0.13);
+
+  ctx.strokeStyle="#e1a832";
+  ctx.lineWidth=5;
+  ctx.setLineDash([45,35]);
+  ctx.beginPath();
+  ctx.moveTo((-distance*5)%90,H*0.82);
+  ctx.lineTo(W,H*0.82);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPlayer(){
+  const x = laneX(lane);
+  const y = player.y;
+  const h = player.sliding ? 45 : 90;
+
+  ctx.fillStyle="rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(x,y+8,42,9,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#c68642";
+  ctx.beginPath();
+  ctx.arc(x,y-h+20,24,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#050505";
+  ctx.beginPath();
+  ctx.arc(x,y-h+10,25,Math.PI,0);
+  ctx.fill();
+
+  let shirt = "#c1121f";
+  let name = "Adame";
+
+  if(selected==="ylian"){
+    shirt="#ffffff";
+    name="Ylian";
+  }
+
+  if(selected==="sebai"){
+    shirt="#111111";
+    name="Sebai";
+  }
+
+  ctx.fillStyle=shirt;
+  ctx.fillRect(x-30,y-h+45,60,45);
+
+  if(selected==="adame"){
+    ctx.fillStyle="#006233";
+    ctx.fillRect(x-30,y-h+45,8,45);
+    ctx.fillRect(x+22,y-h+45,8,45);
+    ctx.fillStyle="white";
+    ctx.font="bold 12px Arial";
+    ctx.fillText("MAROC",x-23,y-h+73);
+  }
+
+  if(selected==="ylian"){
+    ctx.fillStyle="#009b3a";
+    ctx.fillRect(x-30,y-h+45,60,8);
+    ctx.fillStyle="black";
+    ctx.font="bold 11px Arial";
+    ctx.fillText("DZ",x-8,y-h+73);
+  }
+
+  if(selected==="sebai"){
+    ctx.fillStyle="#444";
+    ctx.fillRect(x-25,y-h+50,50,10);
+    ctx.fillStyle="#ffcc00";
+    ctx.font="bold 11px Arial";
+    ctx.fillText("CHICK",x-20,y-h+73);
+  }
+
+  ctx.fillStyle="#111";
+  ctx.fillRect(x-24,y-h+90,17,35);
+  ctx.fillRect(x+7,y-h+90,17,35);
+
+  ctx.font="bold 16px Arial";
+  ctx.strokeStyle="black";
+  ctx.lineWidth=4;
+  ctx.strokeText(name,x-28,y-h-10);
+  ctx.fillStyle="white";
+  ctx.fillText(name,x-28,y-h-10);
+}
+
+function drawCoin(c){
+  const x = laneX(c.lane) + (c.x - W/2);
+  const y = c.y;
+
+  const spin = Math.abs(Math.sin(score*0.12))*14 + 4;
+
+  ctx.fillStyle="rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(x,y+22,20,5,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#b87333";
+  ctx.beginPath();
+  ctx.ellipse(x,y,spin,18,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.strokeStyle="#ffd28a";
+  ctx.lineWidth=2;
+  ctx.stroke();
+
+  ctx.fillStyle="#5a2e12";
+  ctx.font="bold 14px Arial";
+  ctx.fillText("1c",x-8,y+5);
+}
+
+function drawObstacle(o){
+  const x = laneX(o.lane) + (o.x - W/2);
+  const y = o.y;
+
+  ctx.fillStyle="rgba(0,0,0,0.4)";
+  ctx.beginPath();
+  ctx.ellipse(x,y+8,50,8,0,0,Math.PI*2);
+  ctx.fill();
+
+  if(o.type==="car"){
+    ctx.fillStyle="#8d99ae";
+    ctx.fillRect(x-45,y-45,90,38);
+
+    ctx.fillStyle="#3a3a3a";
+    ctx.fillRect(x-28,y-60,55,25);
+
+    ctx.fillStyle="#111";
+    ctx.beginPath();
+    ctx.arc(x-28,y-7,10,0,Math.PI*2);
+    ctx.arc(x+28,y-7,10,0,Math.PI*2);
+    ctx.fill();
+  }else{
+    ctx.fillStyle="#ff6b00";
+    ctx.beginPath();
+    ctx.moveTo(x,y-65);
+    ctx.lineTo(x-35,y);
+    ctx.lineTo(x+35,y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle="white";
+    ctx.fillRect(x-22,y-35,44,8);
+    ctx.fillRect(x-30,y-12,60,8);
+  }
+}
+
+function drawMenu(){
+  drawBackground();
+
+  ctx.fillStyle="rgba(0,0,0,0.68)";
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle="#3cff70";
+  ctx.font="bold 44px Arial";
+  ctx.textAlign="center";
+  ctx.fillText("POUR LA VILLE 💚",W/2,H*0.17);
+
+  ctx.fillStyle="white";
+  ctx.font="18px Arial";
+  ctx.fillText("Choisis ton personnage",W/2,H*0.23);
+
+  drawCard("🇲🇦 Adame","Retrouver Manon",H*0.34,"adame");
+  drawCard("🇩🇿 Ylian","Trouver une alternance",H*0.52,"ylian");
+  drawCard("🍗 Sebai","CHICK PITZZZZ",H*0.70,"sebai");
+
+  ctx.textAlign="left";
+}
+
+function drawCard(title,sub,y,char){
+  ctx.fillStyle="rgba(255,255,255,0.09)";
+  ctx.fillRect(W*0.12,y,W*0.76,80);
+
+  ctx.strokeStyle="#3cff70";
+  ctx.lineWidth=2;
+  ctx.strokeRect(W*0.12,y,W*0.76,80);
+
+  ctx.fillStyle="white";
+  ctx.font="bold 24px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(title,W/2,y+32);
+
+  ctx.font="15px Arial";
+  ctx.fillText(sub,W/2,y+58);
+}
+
+function drawUI(){
+  ctx.fillStyle="white";
+  ctx.font="bold 19px Arial";
+  ctx.fillText("Distance : "+Math.floor(distance)+" m",20,40);
+  ctx.fillText("Centimes : "+cents+" 🪙",20,70);
+
+  if(state==="over"){
+    ctx.fillStyle="rgba(0,0,0,0.78)";
+    ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle="#ff2b2b";
+    ctx.font="bold 46px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER",W/2,H/2-45);
+
+    ctx.fillStyle="white";
+    ctx.font="20px Arial";
+    ctx.fillText("Distance : "+Math.floor(distance)+" m",W/2,H/2);
+    ctx.fillText("Centimes : "+cents,W/2,H/2+30);
+    ctx.fillText("Tape pour revenir au menu",W/2,H/2+75);
+
+    ctx.textAlign="left";
+  }
+}
+
+function draw(){
+  if(state==="menu"){
+    drawMenu();
+    return;
+  }
+
+  drawBackground();
+  coins.forEach(drawCoin);
+  obstacles.forEach(drawObstacle);
+  drawPlayer();
+  drawUI();
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
 </script>
 
 </body>
